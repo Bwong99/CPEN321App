@@ -1,3 +1,47 @@
 <resources>
     <string name="app_name">CPEN321 Application</string>
+
+    <!-- Home screen -->
+    <string name="home_button_server">Login + Server</string>
+    <string name="home_button_live_updates">Live Updates</string>
+    <string name="home_button_timer">Timer</string>
+
+    <!-- Screen titles -->
+    <string name="title_server">Login + Server</string>
+    <string name="title_live_updates">Pixel Art</string>
+    <string name="title_timer">Timer</string>
+
+    <!-- Shared -->
+    <string name="action_back">Back</string>
+    <string name="action_retry">Retry</string>
+
+    <!-- Button 3: timer and surprise -->
+    <string name="label_minutes">Minutes</string>
+    <string name="label_seconds">Seconds</string>
+    <string name="action_start">Start timer</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_reset">Set another timer</string>
+    <string name="status_countdown">%1$s remaining</string>
+    <string name="surprise_title">Surprise! A one-off pixel bloom, generated just now.</string>
+
+    <!-- Button 2: live pixel stream -->
+    <string name="status_stream_error">Lost the pixel stream</string>
+
+    <!-- Button 1: sign-in -->
+    <string name="prompt_sign_in">Sign in to see the server and client details.</string>
+    <string name="action_sign_in">Sign in with Google</string>
+    <string name="status_signing_in">Opening Google sign-in…</string>
+    <string name="status_sign_in_failed">Sign-in failed</string>
+
+    <!-- Button 1: server / client information -->
+    <string name="label_server_ip">Server IP address</string>
+    <string name="label_client_ip">Client IP address</string>
+    <string name="label_server_time">Server local time</string>
+    <string name="label_client_time">Client local time</string>
+    <string name="label_developer_name">My name</string>
+    <string name="label_signed_in_user">Signed-in user</string>
+
+    <string name="status_loading">Contacting the back-end…</string>
+    <string name="status_error">Could not reach the back-end at %1$s</string>
+    <string name="value_unavailable">Unavailable</string>
 </resources>

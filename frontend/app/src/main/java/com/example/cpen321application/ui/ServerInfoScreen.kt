@@ -1,0 +1,267 @@
+package com.example.cpen321application.ui
+
+import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.example.cpen321application.BuildConfig
+import com.example.cpen321application.R
+import com.example.cpen321application.data.BackendClient
+import com.example.cpen321application.data.DeviceInfo
+import com.example.cpen321application.data.GoogleAuth
+import com.example.cpen321application.data.ServerInfo
+import com.example.cpen321application.data.SignedInUser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+private const val CARD_PADDING_DP = 16
+private const val ROW_SPACING_DP = 14
+
+private val CardPadding = CARD_PADDING_DP.dp
+private val RowSpacing = ROW_SPACING_DP.dp
+
+private sealed interface DetailsUiState {
+    data object Loading : DetailsUiState
+
+    data class Failed(val message: String) : DetailsUiState
+
+    data class Loaded(
+        val server: ServerInfo,
+        val clientIp: String?,
+        val clientTime: String,
+    ) : DetailsUiState
+}
+
+/**
+ * Button 1. The user signs in with Google first; only then does the app call
+ * the back-end and show the six values M1 requires.
+ */
+@Composable
+fun ServerInfoScreen(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var user by remember { mutableStateOf<SignedInUser?>(null) }
+
+    ScreenContainer(
+        title = stringResource(R.string.title_server),
+        onBack = onBack,
+        modifier = modifier,
+    ) {
+        val signedIn = user
+        if (signedIn == null) {
+            SignInSection(onSignedIn = { user = it })
+        } else {
+            DetailsSection(user = signedIn)
+        }
+    }
+}
+
+@Composable
+private fun SignInSection(
+    onSignedIn: (SignedInUser) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val activity = LocalActivity.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(space = ItemSpacing),
+    ) {
+        Text(text = stringResource(R.string.prompt_sign_in))
+
+        Button(
+            enabled = !busy && activity != null,
+            onClick = {
+                val host = activity ?: return@Button
+                busy = true
+                scope.launch {
+                    val result = GoogleAuth.signIn(host, BuildConfig.GOOGLE_CLIENT_ID)
+                    busy = false
+                    result.fold(
+                        onSuccess = onSignedIn,
+                        onFailure = { error = it.message ?: it.javaClass.simpleName },
+                    )
+                }
+            },
+        ) {
+            Text(text = stringResource(R.string.action_sign_in))
+        }
+
+        if (busy) {
+            Text(text = stringResource(R.string.status_signing_in))
+        }
+
+        error?.let { message ->
+            Text(
+                text = stringResource(R.string.status_sign_in_failed),
+                color = MaterialTheme.colorScheme.error,
+            )
+            Text(text = message, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun DetailsSection(
+    user: SignedInUser,
+    modifier: Modifier = Modifier,
+) {
+    val baseUrl = BuildConfig.API_BASE_URL
+    var reloadKey by remember { mutableIntStateOf(0) }
+    var state by remember { mutableStateOf<DetailsUiState>(DetailsUiState.Loading) }
+
+    LaunchedEffect(baseUrl, reloadKey) {
+        state = DetailsUiState.Loading
+        val result = BackendClient.fetchServerInfo(baseUrl)
+        // Enumerating network interfaces blocks, so keep it off the main thread.
+        val clientIp = withContext(Dispatchers.IO) { DeviceInfo.ipAddress() }
+
+        state = result.fold(
+            onSuccess = { server ->
+                DetailsUiState.Loaded(server, clientIp, DeviceInfo.localTime())
+            },
+            onFailure = { error ->
+                DetailsUiState.Failed(error.message ?: error.javaClass.simpleName)
+            },
+        )
+    }
+
+    when (val current = state) {
+        DetailsUiState.Loading -> LoadingContent(modifier = modifier)
+
+        is DetailsUiState.Failed -> FailedContent(
+            baseUrl = baseUrl,
+            detail = current.message,
+            onRetry = { reloadKey++ },
+            modifier = modifier,
+        )
+
+        is DetailsUiState.Loaded -> InfoCard(
+            state = current,
+            user = user,
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+private fun LoadingContent(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(space = ItemSpacing),
+    ) {
+        CircularProgressIndicator()
+        Text(text = stringResource(R.string.status_loading))
+    }
+}
+
+@Composable
+private fun FailedContent(
+    baseUrl: String,
+    detail: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(space = ItemSpacing),
+    ) {
+        Text(
+            text = stringResource(R.string.status_error, baseUrl),
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text(text = detail, style = MaterialTheme.typography.bodySmall)
+        TextButton(onClick = onRetry) {
+            Text(text = stringResource(R.string.action_retry))
+        }
+    }
+}
+
+@Composable
+private fun InfoCard(
+    state: DetailsUiState.Loaded,
+    user: SignedInUser,
+    modifier: Modifier = Modifier,
+) {
+    val unavailable = stringResource(R.string.value_unavailable)
+
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(all = CardPadding),
+            verticalArrangement = Arrangement.spacedBy(space = RowSpacing),
+        ) {
+            InfoRow(
+                label = stringResource(R.string.label_server_ip),
+                value = state.server.ipAddress,
+            )
+            InfoRow(
+                label = stringResource(R.string.label_client_ip),
+                value = state.clientIp ?: unavailable,
+            )
+
+            HorizontalDivider()
+
+            InfoRow(
+                label = stringResource(R.string.label_server_time),
+                value = state.server.localTime,
+            )
+            InfoRow(
+                label = stringResource(R.string.label_client_time),
+                value = state.clientTime,
+            )
+
+            HorizontalDivider()
+
+            InfoRow(
+                label = stringResource(R.string.label_developer_name),
+                value = "${state.server.firstName} ${state.server.lastName}",
+            )
+            InfoRow(
+                label = stringResource(R.string.label_signed_in_user),
+                value = "${user.firstName} ${user.lastName}".trim()
+                    .ifEmpty { unavailable },
+            )
+        }
+    }
+}
+
+@Composable
+private fun InfoRow(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(text = value, style = MaterialTheme.typography.bodyLarge)
+    }
+}

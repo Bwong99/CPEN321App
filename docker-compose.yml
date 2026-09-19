@@ -13,6 +13,10 @@ services:
       - path: ./backend/.env
     environment:
       MONGODB_URI: mongodb://mongo:27017/cpen321
+    # Mounted read-only rather than copied into the image, so the private key
+    # never ends up in a built artifact. Only read when ENABLE_HTTPS=true.
+    volumes:
+      - ./backend/certs:/app/certs:ro
     depends_on:
       mongo:
         condition: service_healthy

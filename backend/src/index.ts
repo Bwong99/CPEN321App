@@ -4,6 +4,7 @@ import { createServer as createHttpsServer } from 'node:https';
 
 import { createApp } from './app';
 import { env } from './config/env';
+import { attachPixelRelay } from './pixelRelay';
 
 const app = createApp();
 
@@ -20,6 +21,8 @@ const server = env.httpsEnabled
       app
     )
   : createHttpServer(app);
+
+attachPixelRelay(server);
 
 server.listen(env.port, () => {
   const scheme = env.httpsEnabled ? 'https' : 'http';

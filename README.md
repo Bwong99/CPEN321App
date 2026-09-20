@@ -27,6 +27,18 @@ Play Services, so an AOSP-only image cannot sign in.
      emulator's alias for the host machine)
    - Local back-end, physical device — `http://<your computer's LAN IP>:3000`
 
+   `local.properties` is gitignored, so these values never reach the
+   repository and must be supplied by whoever builds the APK. If
+   `API_BASE_URL` is missing, the build silently falls back to
+   `http://10.0.2.2:3000`, which points at whatever machine the emulator is
+   running on rather than at the deployed server — the app then fails to
+   reach the back-end with no obvious cause. Set it to the deployed HTTPS URL
+   before building an APK for anyone else.
+
+   The file is Java Properties format, which escapes colons. The deployed
+   value is written `API_BASE_URL=https\://<SERVER_PUBLIC_IP>\:3000`; Gradle
+   strips the backslashes when reading it.
+
 3. Sign in to a Google account on the emulator (Settings > Passwords &
    accounts), using an account listed as a test user on the OAuth consent
    screen. Sign-in fails for any other account while the consent screen is in
@@ -158,6 +170,53 @@ BACKEND_HEALTH_URL="https://localhost:3000/health" ./scripts/run-backend.sh
 ```
 
 Both steps are ordinary setup; the scripts themselves are used unmodified.
+
+### Deploying to the cloud server
+
+The deployed instance runs the compiled backend directly under Node with
+systemd, not under Docker. The instance has 1 GB of RAM, and the Compose stack
+also starts MongoDB, which this milestone does not use and which blocks
+start-up through its `depends_on` health condition. systemd also restarts the
+service on crash and on reboot, which the Compose file does not currently do
+for the backend service.
+
+Deployed layout:
+
+- Source lives at `~/CPEN321App/backend` on the server.
+- `backend/certs/` and `backend/.env` are gitignored, so they are copied to the
+  server directly rather than through Git.
+- `backend/.env` sets `PORT=3000`, `SERVER_PUBLIC_IP=<public IP>` and
+  `ENABLE_HTTPS=true`.
+- The unit file is `/etc/systemd/system/cpen321-backend.service`, running
+  `node dist/index.js` with `WorkingDirectory` set to the backend directory.
+  The working directory matters: `src/index.ts` reads the certificate from the
+  relative path `./certs/server.crt`.
+
+To deploy, or to redeploy after a code change:
+
+```bash
+# From the repository root, on your own machine
+rsync -az --delete -e "ssh -i <key>.pem" \
+  --exclude node_modules --exclude coverage --exclude certs --exclude .env \
+  backend/ ubuntu@<public IP>:~/CPEN321App/backend/
+
+scp -i <key>.pem -r backend/certs ubuntu@<public IP>:~/CPEN321App/backend/
+
+# On the server
+ssh -i <key>.pem ubuntu@<public IP>
+cd ~/CPEN321App/backend && npm ci && npm run build
+sudo systemctl restart cpen321-backend
+```
+
+Checking on it:
+
+- `sudo systemctl status cpen321-backend` — whether it is running.
+- `sudo journalctl -u cpen321-backend -f` — live logs.
+- `sudo systemctl is-enabled cpen321-backend` — whether it starts on boot.
+
+The security group must allow inbound TCP on port 3000. A blocked port times
+out, while an open port with nothing listening refuses the connection
+immediately — a quick way to tell the two apart from outside.
 
 ## Additional Setup 
 

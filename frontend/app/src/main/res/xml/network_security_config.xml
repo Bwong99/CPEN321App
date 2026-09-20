@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The deployed back-end presents a self-signed certificate, which M1 explicitly
+  permits. Android will not trust one without being told to, so the certificate
+  is pinned here for that host only. Every other host keeps the platform's
+  normal CA trust and cleartext stays off.
+-->
+<network-security-config>
+
+    <!-- Deployed back-end (AWS Elastic IP), self-signed certificate. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">52.35.22.194</domain>
+        <trust-anchors>
+            <certificates src="@raw/server_cert" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- Local development: the emulator reaches the host machine at 10.0.2.2. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+
+    <base-config cleartextTrafficPermitted="false" />
+
+</network-security-config>

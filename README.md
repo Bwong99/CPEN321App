@@ -5,6 +5,35 @@ Three independent buttons: server and client details over HTTPS after Google
 sign-in, a live 16x16 pixel image relayed from the course WebSocket, and a
 timer with a surprise.
 
+## Quick start for graders
+
+Everything needed to build and run this project is below. Two files are
+gitignored and must be created by hand; their exact contents are given here.
+
+1. Clone the repository and create `frontend/local.properties` with:
+
+   ```properties
+   sdk.dir=/path/to/your/Android/sdk
+   API_BASE_URL=https\://52.35.22.194\:3000
+   GOOGLE_CLIENT_ID=294961049928-tqu94trnk3bqmce77bs2armgtht67qpp.apps.googleusercontent.com
+   ```
+
+   **The build does not fail if this file is missing.** It falls back to an
+   empty client ID and `http://10.0.2.2:3000`, producing an APK that installs
+   and runs but cannot sign in or reach the server. Create the file first.
+
+2. `./scripts/run-frontend.sh` — builds, installs, and launches the app on a
+   Pixel 9 emulator (API 36, **Google Play** system image; Credential Manager
+   needs Play Services, so an AOSP-only image cannot sign in).
+
+3. Add a Google account to the emulator under Settings > Passwords & accounts
+   before using Button 1. Credentials for the account to use are in
+   `M1_Doc.pdf`.
+
+The back-end is already deployed at `https://52.35.22.194:3000` and needs no
+setup to exercise the app. To run your own copy, see
+[Backend Setup](#backend-setup).
+
 ## Repository Structure
 
 ```shell
@@ -57,13 +86,17 @@ cannot sign in.
    - `API_BASE_URL` — `https://52.35.22.194:3000` for the deployed server, or
      `http://10.0.2.2:3000` for a back-end on your own machine (`10.0.2.2` is
      the emulator's alias for the host).
-   - `GOOGLE_CLIENT_ID` — the **Web** OAuth client ID (see below).
+   - `GOOGLE_CLIENT_ID` — the **Web** OAuth client ID (see below). For this
+     submission that value is
+     `294961049928-tqu94trnk3bqmce77bs2armgtht67qpp.apps.googleusercontent.com`.
+     It is not a secret; it ships inside every APK.
 
-   `local.properties` is gitignored, so these never reach the repository. If
-   `API_BASE_URL` is unset the build silently falls back to
-   `http://10.0.2.2:3000`, which points at the build machine rather than the
-   server. Properties format escapes colons, so the deployed value is written
-   `API_BASE_URL=https\://52.35.22.194\:3000`.
+   `local.properties` is gitignored, so these never reach the repository.
+   Neither missing value fails the build: an unset `API_BASE_URL` silently
+   falls back to `http://10.0.2.2:3000`, which points at the build machine
+   rather than the server, and an unset `GOOGLE_CLIENT_ID` produces an APK that
+   cannot sign in. Properties format escapes colons, so the deployed value is
+   written `API_BASE_URL=https\://52.35.22.194\:3000`.
 
 3. Sign in to a Google account on the emulator (Settings > Passwords &
    accounts). A freshly created emulator has no account, and Credential
@@ -71,9 +104,9 @@ cannot sign in.
    sign-in screen shows an **Add a Google account** button that opens this
    screen for you if none is present.
 
-   The OAuth consent screen stays in **testing** mode, so only accounts on its
-   test-user list can sign in. Use the test account whose credentials are listed
-   in `M1_Doc.pdf` rather than a personal account.
+   The OAuth consent screen is **published**, so any Google account can sign
+   in. A test account is listed in `M1_Doc.pdf` if you would rather not use a
+   personal one.
 
 4. `./scripts/run-frontend.sh`
 

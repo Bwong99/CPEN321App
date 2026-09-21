@@ -24,8 +24,23 @@ const serverPublicIp =
 // this flag; local development stays on plain HTTP.
 const httpsEnabled = process.env.ENABLE_HTTPS?.trim().toLowerCase() === 'true';
 
+// The Web OAuth client ID that Google ID tokens must be issued to. The app
+// sends the token it gets from Credential Manager and the server verifies it
+// against this audience, so a token minted for some other project is refused.
+// Not a secret — it ships inside the APK — but the server cannot verify
+// anything without it, so start-up fails rather than silently accepting none.
+const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
+
+if (googleClientId === undefined || googleClientId === '') {
+  throw new Error(
+    'GOOGLE_CLIENT_ID is not set. Copy backend/.env.example to backend/.env ' +
+      'and set it to the Web OAuth client ID (see README).'
+  );
+}
+
 export const env = {
   port,
   serverPublicIp,
   httpsEnabled,
+  googleClientId,
 } as const;

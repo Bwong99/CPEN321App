@@ -1,8 +1,9 @@
 import { networkInterfaces, type NetworkInterfaceInfo } from 'node:os';
 
-import express, { type Express } from 'express';
+import express, { type Express, type Request, type Response } from 'express';
 
 import { env } from './config/env';
+import { describe, requireGoogleAuth, verifyGoogleIdToken } from './googleAuth';
 
 // The developer name reported by GET /api/name, as required by M1.
 const OWNER_FIRST_NAME = 'Bradley';
@@ -24,23 +25,35 @@ const SERVER_TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
 export function createApp(): Express {
   const app = express();
 
+  // Only the sign-in route has a body; the limit keeps an oversized one from
+  // being buffered before it is rejected.
+  app.use(express.json({ limit: '4kb' }));
+
   // Stays off the /api prefix: scripts/run-backend.sh and the Docker health
   // probe both poll /health directly.
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
 
-  app.get('/api/name', (_req, res) => {
+  // Exchanges the ID token the app gets from Credential Manager for the
+  // identity behind it. The app shows the name from this response rather than
+  // the one it read out of the token itself, so what reaches the screen is
+  // what the server verified.
+  app.post('/api/auth/google', handleGoogleSignIn);
+
+  // Everything below needs a valid ID token. Registered per route rather than
+  // on the whole /api prefix so /health and the sign-in route above stay open.
+  app.get('/api/name', requireGoogleAuth, (_req, res) => {
     res.json({ firstName: OWNER_FIRST_NAME, lastName: OWNER_LAST_NAME });
   });
 
-  app.get('/api/time', (_req, res) => {
+  app.get('/api/time', requireGoogleAuth, (_req, res) => {
     // Evaluated per request: M1 asks for the server time at the time of call,
     // in 24-hour format relative to GMT.
     res.json({ time: SERVER_TIME_FORMATTER.format(new Date()) });
   });
 
-  app.get('/api/ip', (_req, res) => {
+  app.get('/api/ip', requireGoogleAuth, (_req, res) => {
     try {
       res.json({ ip: resolveServerIp() });
     } catch {
@@ -55,6 +68,34 @@ export function createApp(): Express {
   });
 
   return app;
+}
+
+/**
+ * POST /api/auth/google — verifies `{ idToken }` and answers with the account
+ * it belongs to.
+ *
+ * A 401 here means the token did not check out against Google; a 400 means the
+ * request never carried one.
+ */
+async function handleGoogleSignIn(req: Request, res: Response): Promise<void> {
+  const { idToken } = req.body as { idToken?: unknown };
+
+  if (typeof idToken !== 'string' || idToken.trim() === '') {
+    res.status(400).json({ error: 'Request body must contain an idToken' });
+    return;
+  }
+
+  try {
+    const user = await verifyGoogleIdToken(idToken);
+    res.json({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+    });
+  } catch (cause) {
+    console.error(`Google sign-in rejected: ${describe(cause)}`);
+    res.status(401).json({ error: 'Invalid or expired Google ID token' });
+  }
 }
 
 /**

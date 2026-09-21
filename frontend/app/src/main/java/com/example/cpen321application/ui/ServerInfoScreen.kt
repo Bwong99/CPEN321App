@@ -27,12 +27,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.cpen321application.BuildConfig
 import com.example.cpen321application.R
+import com.example.cpen321application.data.AuthenticatedUser
 import com.example.cpen321application.data.BackendClient
 import com.example.cpen321application.data.DeviceInfo
 import com.example.cpen321application.data.GoogleAuth
 import com.example.cpen321application.data.NoDeviceAccountException
 import com.example.cpen321application.data.ServerInfo
-import com.example.cpen321application.data.SignedInUser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -42,6 +42,15 @@ private const val ROW_SPACING_DP = 14
 
 private val CardPadding = CARD_PADDING_DP.dp
 private val RowSpacing = ROW_SPACING_DP.dp
+
+/**
+ * A completed sign-in: the ID token every later request is authenticated with,
+ * and the account the back-end verified that token to belong to.
+ */
+private data class Session(
+    val idToken: String,
+    val user: AuthenticatedUser,
+)
 
 private sealed interface DetailsUiState {
     data object Loading : DetailsUiState
@@ -64,27 +73,28 @@ fun ServerInfoScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var user by remember { mutableStateOf<SignedInUser?>(null) }
+    var session by remember { mutableStateOf<Session?>(null) }
 
     ScreenContainer(
         title = stringResource(R.string.title_server),
         onBack = onBack,
         modifier = modifier,
     ) {
-        val signedIn = user
+        val signedIn = session
         if (signedIn == null) {
-            SignInSection(onSignedIn = { user = it })
+            SignInSection(onSignedIn = { session = it })
         } else {
-            DetailsSection(user = signedIn)
+            DetailsSection(session = signedIn)
         }
     }
 }
 
 @Composable
 private fun SignInSection(
-    onSignedIn: (SignedInUser) -> Unit,
+    onSignedIn: (Session) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val baseUrl = BuildConfig.API_BASE_URL
     val activity = LocalActivity.current
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
@@ -102,8 +112,20 @@ private fun SignInSection(
             onClick = {
                 val host = activity ?: return@Button
                 busy = true
+                needsAccount = false
+                error = null
                 scope.launch {
+                    // Two steps, and the second is the one that counts: Google
+                    // issues a token, then the back-end verifies it and says
+                    // who it belongs to. Sign-in has not happened until the
+                    // server agrees, so a rejected token fails the whole thing.
                     val result = GoogleAuth.signIn(host, BuildConfig.GOOGLE_CLIENT_ID)
+                        .mapCatching { idToken ->
+                            val user = BackendClient
+                                .authenticate(baseUrl, idToken)
+                                .getOrThrow()
+                            Session(idToken = idToken, user = user)
+                        }
                     busy = false
                     result.fold(
                         onSuccess = onSignedIn,
@@ -143,7 +165,7 @@ private fun SignInSection(
 
 @Composable
 private fun DetailsSection(
-    user: SignedInUser,
+    session: Session,
     modifier: Modifier = Modifier,
 ) {
     val baseUrl = BuildConfig.API_BASE_URL
@@ -152,7 +174,7 @@ private fun DetailsSection(
 
     LaunchedEffect(baseUrl, reloadKey) {
         state = DetailsUiState.Loading
-        val result = BackendClient.fetchServerInfo(baseUrl)
+        val result = BackendClient.fetchServerInfo(baseUrl, session.idToken)
         // Enumerating network interfaces blocks, so keep it off the main thread.
         val clientIp = withContext(Dispatchers.IO) { DeviceInfo.ipAddress() }
 
@@ -178,7 +200,7 @@ private fun DetailsSection(
 
         is DetailsUiState.Loaded -> InfoCard(
             state = current,
-            user = user,
+            user = session.user,
             modifier = modifier,
         )
     }
@@ -221,7 +243,7 @@ private fun FailedContent(
 @Composable
 private fun InfoCard(
     state: DetailsUiState.Loaded,
-    user: SignedInUser,
+    user: AuthenticatedUser,
     modifier: Modifier = Modifier,
 ) {
     val unavailable = stringResource(R.string.value_unavailable)

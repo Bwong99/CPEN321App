@@ -64,12 +64,23 @@ setup to exercise the app. To run your own copy, see
 
 Base URL `https://52.35.22.194:3000`, self-signed certificate pinned by the app.
 
-- `GET /api/ip` — `{ "ip": "<IPv4 or IPv6>" }`
+The three data endpoints require authentication. Each must carry the Google ID
+token obtained at sign-in as `Authorization: Bearer <token>`; without one the
+server answers `401` and no data.
+
+- `POST /api/auth/google` — body `{ "idToken": "..." }`. Verifies the token and
+  answers `{ "firstName": "...", "lastName": "...", "email": "..." }` for the
+  account it belongs to. `400` if the body carries no token, `401` if the token
+  does not check out. This is the app's only source for the signed-in user's
+  name.
+- `GET /api/ip` — `{ "ip": "<IPv4 or IPv6>" }`. Authenticated.
 - `GET /api/time` — `{ "time": "hh:mm:ss GMT+hh:mm" }`, server local time read at
-  the moment of the call. On a UTC host it reads `GMT+00:00`.
-- `GET /api/name` — `{ "firstName": "...", "lastName": "..." }`
+  the moment of the call. On a UTC host it reads `GMT+00:00`. Authenticated.
+- `GET /api/name` — `{ "firstName": "...", "lastName": "..." }`, the developer's
+  own name. Authenticated.
 - `GET /health` — `{ "status": "ok" }`. Kept off the `/api` prefix because the
-  deploy script and container health probe poll it directly.
+  deploy script and container health probe poll it directly. Open, so the probe
+  needs no credentials.
 - `ws /ws/pixels` — relays the course pixel stream frame for frame.
 
 ## Frontend Setup
@@ -112,8 +123,30 @@ cannot sign in.
 
 ### Google sign-in
 
-Credential Manager with Google Identity Services directly, not Firebase. Two
-OAuth clients in one Google Cloud project:
+Credential Manager with Google Identity Services directly, not Firebase.
+
+The token is verified on the server, not trusted from the client. The flow is:
+
+1. The app asks Credential Manager for a Google ID token, naming the **Web**
+   client ID as its server client ID — so Google mints the token with that ID
+   as its audience.
+2. The app posts the token to `POST /api/auth/google`. It deliberately ignores
+   the name Credential Manager also returns: anything read on the device has
+   only the client's word behind it.
+3. The server calls `verifyIdToken` from `google-auth-library`, which checks the
+   RS256 signature against Google's published keys, that `aud` matches
+   `GOOGLE_CLIENT_ID`, that `iss` is Google, and that the token has not expired.
+   A forged, replayed, or foreign-audience token fails here.
+4. The verified `given_name` / `family_name` come back to the app, and that is
+   what the Button 1 screen shows as the signed-in user.
+5. Every later call to `/api/name`, `/api/time`, and `/api/ip` carries the same
+   token, which `requireGoogleAuth` re-verifies per request.
+
+`google-auth-library` is used only to check the token's signature against
+Google's keys. The routing, middleware, and request handling around it are our
+own — the course staff approved the library on that basis.
+
+Two OAuth clients in one Google Cloud project:
 
 - An **Android** client registering `com.example.cpen321application` with the
   SHA-1 of the signing key. Its client ID is never used in code.
@@ -153,6 +186,12 @@ Requires Docker (Compose v2.24+), or Node.js 22+ to run it directly.
      reports this value. Leave blank locally and the server scans its own
      interfaces instead.
    - `ENABLE_HTTPS` — `true` serves TLS from `backend/certs/`.
+   - `GOOGLE_CLIENT_ID` — **required.** The Web OAuth client ID that ID tokens
+     are verified against. It must match `GOOGLE_CLIENT_ID` in
+     `frontend/local.properties`, or every request is rejected as
+     wrong-audience. The server refuses to start without it, rather than
+     running with authentication that accepts anything. `.env.example` already
+     carries this submission's value; it is not a secret.
 
 3. `./scripts/run-backend.sh` — builds and starts the Compose stack, waiting on
    `/health`. Stop with `docker compose down`.

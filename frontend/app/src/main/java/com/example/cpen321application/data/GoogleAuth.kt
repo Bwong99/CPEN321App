@@ -18,12 +18,6 @@ class NoDeviceAccountException(cause: Throwable) : Exception(
     cause,
 )
 
-/** The signed-in account's name, for the last row of the Button 1 screen. */
-data class SignedInUser(
-    val firstName: String,
-    val lastName: String,
-)
-
 /**
  * Google sign-in via Credential Manager and Google Identity Services.
  *
@@ -34,7 +28,14 @@ data class SignedInUser(
 object GoogleAuth {
 
     /**
-     * Shows the Google account chooser and returns the chosen account's name.
+     * Shows the Google account chooser and returns the chosen account's Google
+     * ID token.
+     *
+     * Deliberately returns the token rather than the name Credential Manager
+     * also hands back: anything read here has only the client's word behind
+     * it. The name shown on screen comes from
+     * [com.example.cpen321application.data.BackendClient.authenticate], which
+     * is the server reporting what it verified this token to contain.
      *
      * @param activityContext must be an Activity context — Credential Manager
      *   needs one to present its UI.
@@ -42,7 +43,7 @@ object GoogleAuth {
     suspend fun signIn(
         activityContext: Context,
         serverClientId: String,
-    ): Result<SignedInUser> {
+    ): Result<String> {
         if (serverClientId.isBlank()) {
             return Result.failure(
                 IllegalStateException(
@@ -67,12 +68,7 @@ object GoogleAuth {
                 .getCredential(activityContext, request)
             val credential = GoogleIdTokenCredential.createFrom(response.credential.data)
 
-            Result.success(
-                SignedInUser(
-                    firstName = credential.givenName.orEmpty(),
-                    lastName = credential.familyName.orEmpty(),
-                )
-            )
+            Result.success(credential.idToken)
         } catch (e: NoCredentialException) {
             // Raised when the device has no Google account at all, which is
             // the usual state of a freshly created emulator. Reported as its

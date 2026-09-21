@@ -1,4 +1,4 @@
-# CPEN321_26W1_ProjectName
+# CPEN321_26W1_app
 
 Android app (Kotlin, Jetpack Compose) with a Node.js/TypeScript back-end.
 Three independent buttons: server and client details over HTTPS after Google
@@ -66,8 +66,13 @@ cannot sign in.
    `API_BASE_URL=https\://52.35.22.194\:3000`.
 
 3. Sign in to a Google account on the emulator (Settings > Passwords &
-   accounts) that is listed as a test user on the OAuth consent screen. Other
-   accounts fail while the screen is in testing mode.
+   accounts). A freshly created emulator has no account, and Credential
+   Manager can only offer accounts already on the device — so the app's
+   sign-in screen shows an **Add a Google account** button that opens this
+   screen for you if none is present.
+
+   While the OAuth consent screen is in testing mode, only accounts on its
+   test-user list can sign in; once it is published, any account works.
 
 4. `./scripts/run-frontend.sh`
 

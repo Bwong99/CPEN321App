@@ -8,6 +8,16 @@ import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 
+/**
+ * No Google account is present on the device, so Credential Manager has
+ * nothing to offer. Recoverable: the screen points the user at Android's
+ * add-account flow rather than leaving them stuck.
+ */
+class NoDeviceAccountException(cause: Throwable) : Exception(
+    "No Google account on this device yet.",
+    cause,
+)
+
 /** The signed-in account's name, for the last row of the Button 1 screen. */
 data class SignedInUser(
     val firstName: String,
@@ -65,14 +75,9 @@ object GoogleAuth {
             )
         } catch (e: NoCredentialException) {
             // Raised when the device has no Google account at all, which is
-            // the usual state of a freshly created emulator.
-            Result.failure(
-                IllegalStateException(
-                    "No Google account on this device. Add one in " +
-                        "Settings > Passwords & accounts, then try again.",
-                    e,
-                )
-            )
+            // the usual state of a freshly created emulator. Reported as its
+            // own type so the screen can offer to open the add-account flow.
+            Result.failure(NoDeviceAccountException(e))
         } catch (e: GetCredentialException) {
             // Covers cancellation, a misconfigured client ID, and Play
             // Services problems; the message is surfaced to the user as-is.

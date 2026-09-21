@@ -1,5 +1,7 @@
 package com.example.cpen321application.ui
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -28,6 +30,7 @@ import com.example.cpen321application.R
 import com.example.cpen321application.data.BackendClient
 import com.example.cpen321application.data.DeviceInfo
 import com.example.cpen321application.data.GoogleAuth
+import com.example.cpen321application.data.NoDeviceAccountException
 import com.example.cpen321application.data.ServerInfo
 import com.example.cpen321application.data.SignedInUser
 import kotlinx.coroutines.Dispatchers
@@ -86,6 +89,7 @@ private fun SignInSection(
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var needsAccount by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -103,7 +107,10 @@ private fun SignInSection(
                     busy = false
                     result.fold(
                         onSuccess = onSignedIn,
-                        onFailure = { error = it.message ?: it.javaClass.simpleName },
+                        onFailure = { cause ->
+                            needsAccount = cause is NoDeviceAccountException
+                            error = cause.message ?: cause.javaClass.simpleName
+                        },
                     )
                 }
             },
@@ -115,12 +122,21 @@ private fun SignInSection(
             Text(text = stringResource(R.string.status_signing_in))
         }
 
-        error?.let { message ->
-            Text(
-                text = stringResource(R.string.status_sign_in_failed),
-                color = MaterialTheme.colorScheme.error,
-            )
-            Text(text = message, style = MaterialTheme.typography.bodySmall)
+        if (needsAccount) {
+            // Android has no account to offer, so send the user straight to
+            // the add-account flow rather than leaving them at a dead end.
+            Text(text = stringResource(R.string.status_no_account))
+            Button(onClick = { activity?.startActivity(addGoogleAccountIntent()) }) {
+                Text(text = stringResource(R.string.action_add_account))
+            }
+        } else {
+            error?.let { message ->
+                Text(
+                    text = stringResource(R.string.status_sign_in_failed),
+                    color = MaterialTheme.colorScheme.error,
+                )
+                Text(text = message, style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
@@ -265,3 +281,11 @@ private fun InfoRow(
         Text(text = value, style = MaterialTheme.typography.bodyLarge)
     }
 }
+
+/**
+ * Opens Android's add-account screen, filtered to Google. Used when the device
+ * has no account for Credential Manager to offer.
+ */
+private fun addGoogleAccountIntent(): Intent =
+    Intent(Settings.ACTION_ADD_ACCOUNT)
+        .putExtra(Settings.EXTRA_ACCOUNT_TYPES, arrayOf("com.google"))

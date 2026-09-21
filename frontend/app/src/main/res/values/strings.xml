@@ -32,6 +32,8 @@
     <string name="action_sign_in">Sign in with Google</string>
     <string name="status_signing_in">Opening Google sign-in…</string>
     <string name="status_sign_in_failed">Sign-in failed</string>
+    <string name="status_no_account">This device has no Google account yet. Add one, then sign in.</string>
+    <string name="action_add_account">Add a Google account</string>
 
     <!-- Button 1: server / client information -->
     <string name="label_server_ip">Server IP address</string>

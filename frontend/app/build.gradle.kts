@@ -44,8 +44,24 @@ android {
         )
     }
 
+    // The submitted APK must be signed by a key whose SHA-1 is registered on the
+    // Android OAuth client, or Google sign-in fails on the TA's emulator. Signing
+    // the release build with the debug keystore keeps that one registered SHA-1
+    // valid for both build types. Point RELEASE_KEYSTORE at a real release key in
+    // local.properties to sign with that instead.
+    signingConfigs {
+        create("release") {
+            val debugKeystore = "${System.getProperty("user.home")}/.android/debug.keystore"
+            storeFile = file(localProperty("RELEASE_KEYSTORE", debugKeystore))
+            storePassword = localProperty("RELEASE_STORE_PASSWORD", "android")
+            keyAlias = localProperty("RELEASE_KEY_ALIAS", "androiddebugkey")
+            keyPassword = localProperty("RELEASE_KEY_PASSWORD", "android")
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

@@ -71,8 +71,9 @@ cannot sign in.
    sign-in screen shows an **Add a Google account** button that opens this
    screen for you if none is present.
 
-   While the OAuth consent screen is in testing mode, only accounts on its
-   test-user list can sign in; once it is published, any account works.
+   The OAuth consent screen stays in **testing** mode, so only accounts on its
+   test-user list can sign in. Use the test account whose credentials are listed
+   in `M1_Doc.pdf` rather than a personal account.
 
 4. `./scripts/run-frontend.sh`
 
@@ -92,7 +93,11 @@ keytool -list -v -keystore ~/.android/debug.keystore \
   -alias androiddebugkey -storepass android -keypass android | grep SHA1
 ```
 
-A release-signed APK uses a different key, whose SHA-1 must also be registered.
+The release build is signed with this same debug keystore, so that one SHA-1
+covers both `installDebug` and the `assembleRelease` APK that gets submitted.
+To sign with a real release key instead, set `RELEASE_KEYSTORE`,
+`RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and `RELEASE_KEY_PASSWORD` in
+`local.properties` and register that key's SHA-1 too.
 
 ### Trusting the certificate
 
@@ -119,8 +124,11 @@ Requires Docker (Compose v2.24+), or Node.js 22+ to run it directly.
 3. `./scripts/run-backend.sh` — builds and starts the Compose stack, waiting on
    `/health`. Stop with `docker compose down`.
 
-4. `./scripts/run-backend-interface-tests.sh` — mocked, un-mocked and combined
-   suites, coverage in `backend/coverage/{mock,no-mock,interface}`.
+4. `./scripts/run-backend-interface-tests.sh` — runs the interface tests with
+   coverage. This milestone has tests in `tests/no-mock/` only, so the script
+   reports that it is skipping the mocked suite and writes coverage to
+   `backend/coverage/no-mock`. The mocked and combined suites run automatically
+   once `tests/mock/` has test files.
 
 ### HTTPS
 

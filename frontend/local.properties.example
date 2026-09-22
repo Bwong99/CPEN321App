@@ -1,10 +1,21 @@
-# Path to your Android SDK. Android Studio usually writes this for you.
-sdk.dir=/path/to/Android/sdk
+# Template for frontend/local.properties, which is gitignored because sdk.dir is
+# specific to one machine. Copy this file to local.properties and fill in sdk.dir.
+#
+# Both values below are baked into the APK at build time by app/build.gradle.kts.
+# Neither is a secret: the client ID ships inside every APK, and the back-end is
+# a public endpoint. They live here rather than in source so a different
+# deployment needs no code change.
+#
+# Note the escaped ':' — local.properties is a Java properties file, where an
+# unescaped colon separates a key from its value.
 
-# Backend base URL baked into the APK at build time.
-API_BASE_URL=http://10.0.2.2:3000
+# Deployed back-end. Use http\://10.0.2.2\:3000 instead to run against a
+# back-end on your own machine (10.0.2.2 is the emulator's alias for the host).
+API_BASE_URL=https\://52.35.22.194\:3000
 
-# Google OAuth client ID.
-GOOGLE_CLIENT_ID=
+# Web OAuth client ID. Must match GOOGLE_CLIENT_ID in backend/.env, or the
+# server rejects every request as wrong-audience.
+GOOGLE_CLIENT_ID=294961049928-tqu94trnk3bqmce77bs2armgtht67qpp.apps.googleusercontent.com
 
-# Other API keys, secrets, and configurations
+# Path to your Android SDK, e.g. /Users/you/Library/Android/sdk
+sdk.dir=
